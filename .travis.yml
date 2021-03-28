@@ -3,12 +3,38 @@ language: generic
 
 services:
   - docker
+#set env variable to identify GIT_SHA
+env:
+  global:
+    - SHA=${git rev-parse HEAD}
+    #avoid prompts for GC commands in before_install
+    - CLOUDSDK_CORE_DISABLE_PROMPTS=1
 
 before_install:
-  - docker build -t cygnetops/react-test -f ./client/Dockerfile.dev ./client
-
+  #add openssl command for encrypted file and decrypt it
+  #download google cloud sdk and install locally and on travis ci instance
+  - curl https://sdk.cloud.google.com | bash > /dev/null;
+  - source $HOME/google-cloud-sdk/path.bash.inc
+  - gcloud components update kubectl
+  - gcloud auth activate-service-account --key-file service-account.json
+  # take project Id from GC project
+  - gcloud config set project skilful-berm-214822
+  - gcloud config set compute/zone us-central1-a
+  - gcloud container clusters get-credentials multi-cluster
+  - echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
+  - docker build -t swatis1209s/react-test ./client/Dockerfile.dev ./client
+  
 script:
-  - docker run -e CI=true cygnetops/react-test npm test
+  - docker run -e CI=true swatis1209s/react-test npm test
+
+deploy:
+  provider: script
+  script: bash ./deploy.sh
+  on:
+    branch: master
+
+
+
 
 after_success:
   - docker build -t cygnetops/multi-client-10-14 ./client
